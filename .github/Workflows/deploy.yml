@@ -1,0 +1,39 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build and Push Airflow Image
+      run: |
+        docker build -t airflow-custom ./airflow
+        az acr login --name <your-acr-name>
+        docker tag airflow-custom <your-acr-name>.azurecr.io/airflow-custom
+        docker push <your-acr-name>.azurecr.io/airflow-custom
+
+    - name: Deploy with Azure CLI
+      run: |
+        az container create \
+          --name airflow-app \
+          --resource-group <your-resource-group> \
+          --image <your-acr-name>.azurecr.io/airflow-custom \
+          --registry-login-server <your-acr-name>.azurecr.io \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }} \
+          --dns-name-label airflowdemo \
+          --ports 8080
